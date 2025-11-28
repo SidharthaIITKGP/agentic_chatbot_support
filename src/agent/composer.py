@@ -67,16 +67,31 @@ def compose_final_answer(state: State) -> str:
     if tool_part:
         pieces.append(tool_part)
 
-    # RAG-based policy snippets - only mention policy exists, don't show excerpts
+    # RAG-based policy snippets
     if state.rag_results:
-        # Just add a brief note that policy info is available
+        # For policy queries without tool response, provide actual answer from RAG
+        if not tool_part and state.intent in ("charges_query", "return_policy", "delivery_delay", "policy_query", "cancellation_policy"):
+            # Extract and summarize the most relevant policy information
+            policy_texts = []
+            for s in state.rag_results[:2]:  # Use top 2 most relevant results
+                text = s.get("text", "")
+                if text:
+                    # Get first few sentences (approximately 200 chars)
+                    snippet = text[:300].strip()
+                    if len(text) > 300:
+                        snippet += "..."
+                    policy_texts.append(snippet)
+            
+            if policy_texts:
+                pieces.append("\n\n".join(policy_texts))
+        
+        # Add policy reference footer
         provenance = []
         for s in state.rag_results:
             meta = s.get("metadata", {}) or {}
             doc_id = meta.get("doc_id") or "policy"
             if doc_id not in provenance:
                 provenance.append(doc_id)
-        # Only mention policy reference if needed
         if provenance:
             pieces.append(f"\n_Policy reference: {', '.join(provenance)}_")
     elif not tool_part:
