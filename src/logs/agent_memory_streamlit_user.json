@@ -42,6 +42,10 @@
     {
       "user": "great now can i cancel my order",
       "assistant": "\n_Policy reference: cancellation_policy.txt, refund_policy.txt, return_policy.txt_"
+    },
+    {
+      "user": "when will i recieve the order",
+      "assistant": "\n_Policy reference: delivery_delay_policy.txt, refund_policy.txt, return_policy.txt_"
     }
   ]
 }
