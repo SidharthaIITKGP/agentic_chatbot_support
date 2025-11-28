@@ -1,11 +1,11 @@
 # src/agent/nodes.py
 """
-Nodes used in a simple agent graph.
-Each node is a callable that receives a State and returns the updated State.
+Nodes for LangGraph agent.
+Each node is a callable that receives AgentState and returns updated state dict.
 """
 
-from typing import Tuple
-from .state import State
+from typing import Dict, Any
+from .state import AgentState
 from .intent_classifier import classify_intent
 from .prompts import CLARIFY_FOR_ORDER_ID, CLARIFY_FOR_PRODUCT_ID
 from src.tools.tools import get_order_status, get_refund_status, get_inventory
@@ -26,137 +26,147 @@ def _normalize_rag_output(out):
     return []
 
 
-def classify_intent_node(state: State) -> State:
+def classify_intent_node(state: AgentState) -> Dict[str, Any]:
     """
-    Determine intent and extract simple slots. Also handle the common follow-up case:
-    when the user replies with only an order id (digits), treat it as slot-filling and
-    inherit previous intent (if available) instead of mis-classifying.
+    Determine intent and extract simple slots. Handle follow-up case where user
+    replies with only digits (treat as order_id and inherit previous intent).
     """
-    raw = (state.user_query or "").strip()
+    raw = (state.get("user_query") or "").strip()
+    slots = state.get("slots", {}).copy()
+    intent = state.get("intent")
+    history = state.get("history", [])
 
     # --- 1) Quick follow-up: user replied with only digits -> treat as order_id slot ---
     if raw.isdigit():
-        # assign the order_id slot
-        state.slots["order_id"] = raw
+        slots["order_id"] = raw
 
-        # if we don't have a strong intent yet, try to inherit the previous one from history
-        if not state.intent and getattr(state, "history", None):
-            prev = state.history[-1] if state.history else {}
+        # if we don't have a strong intent yet, try to inherit from history
+        if not intent and history:
+            prev = history[-1] if history else {}
             prev_intent = prev.get("intent")
             if prev_intent in ("order_status", "refund_status", "delivery_delay", None):
-                state.intent = "order_status"
-                return state
+                return {"intent": "order_status", "slots": slots}
 
-        # if the current intent looks harmless, prefer it to be order_status for digits
-        if state.intent in (None, "", "policy_query"):
-            state.intent = "order_status"
-            return state
+        # if current intent is ambiguous, prefer order_status for digits
+        if intent in (None, "", "policy_query"):
+            return {"intent": "order_status", "slots": slots}
 
     # --- 2) Otherwise use normal classifier ---
-    res = classify_intent(state.user_query)
-    state.intent = res.get("intent")
-    # update any extracted slots from classifier (merge with existing)
-    slots = res.get("slots", {}) or {}
-    state.slots.update(slots)
-    return state
+    res = classify_intent(state.get("user_query", ""))
+    new_intent = res.get("intent")
+    extracted_slots = res.get("slots", {}) or {}
+    
+    # Merge slots
+    slots.update(extracted_slots)
+    
+    return {"intent": new_intent, "slots": slots}
 
 
-def ask_for_slot_node(state: State) -> State:
+def ask_for_slot_node(state: AgentState) -> Dict[str, Any]:
     """
-    If intent requires a particular slot and it is missing, ask for it (set final_answer).
-    Also handle the case where the user provided a numeric order_id in a previous turn:
-    if order_id exists now, do not ask for it.
+    If intent requires a particular slot and it's missing, ask for it.
     """
+    intent = state.get("intent")
+    slots = state.get("slots", {})
+    
     # Order-related intents that need order_id
-    if state.intent in ("order_status", "refund_status", "delivery_delay"):
-        if not state.slots.get("order_id"):
-            state.final_answer = CLARIFY_FOR_ORDER_ID
-            return state
+    if intent in ("order_status", "refund_status", "delivery_delay"):
+        if not slots.get("order_id"):
+            return {"final_answer": CLARIFY_FOR_ORDER_ID}
 
     # Product availability intent requires product_id
-    if state.intent in ("product_availability", "inventory_check"):
-        if not state.slots.get("product_id"):
-            state.final_answer = CLARIFY_FOR_PRODUCT_ID
-            return state
+    if intent in ("product_availability", "inventory_check"):
+        if not slots.get("product_id"):
+            return {"final_answer": CLARIFY_FOR_PRODUCT_ID}
 
-    return state
+    return {}
 
 
-def call_tool_node(state: State) -> State:
+def call_tool_node(state: AgentState) -> Dict[str, Any]:
     """
-    Call the appropriate mock tool based on intent & slots. Do not crash if slot is missing;
-    instead record an error or leave tool_response as None.
+    Call the appropriate tool based on intent & slots.
     """
+    intent = state.get("intent")
+    slots = state.get("slots", {})
+    errors = list(state.get("errors", []))
+    
+    tool_response = None
+    
     try:
-        if state.intent == "order_status":
-            oid = state.slots.get("order_id")
+        if intent == "order_status":
+            oid = slots.get("order_id")
             if oid:
-                state.tool_response = get_order_status(oid)
-            else:
-                state.tool_response = {"error": "missing_order_id"}
-        elif state.intent == "refund_status":
-            oid = state.slots.get("order_id")
+                tool_response = get_order_status(oid)
+        elif intent == "refund_status":
+            oid = slots.get("order_id")
             if oid:
-                state.tool_response = get_refund_status(oid)
-            else:
-                state.tool_response = {"error": "missing_order_id"}
-        elif state.intent in ("product_availability", "inventory_check"):
-            pid = state.slots.get("product_id")
+                tool_response = get_refund_status(oid)
+        elif intent == "product_availability":
+            pid = slots.get("product_id")
             if pid:
-                state.tool_response = get_inventory(pid)
-            else:
-                state.tool_response = {"error": "missing_product_id"}
-        else:
-            # no tool needed
-            state.tool_response = None
+                tool_response = get_inventory(pid)
     except Exception as e:
-        state.errors.append(str(e))
-        state.tool_response = None
-    return state
+        errors.append(str(e))
+    
+    return {"tool_response": tool_response, "errors": errors}
 
 
-def call_rag_node(state: State) -> State:
+def call_rag_node(state: AgentState) -> Dict[str, Any]:
     """
-    For intents that want a policy lookup or when tool response exists but policy backing is desired,
-    call the retriever and store a normalized list into state.rag_results.
+    For intents that want policy lookup or when tool response exists,
+    call the retriever and store normalized results.
     """
+    intent = state.get("intent")
+    user_query = state.get("user_query", "")
+    tool_response = state.get("tool_response")
+    rag_results = []
+    
     try:
         # Intents that primarily want policy text
-        if state.intent in ("charges_query", "return_policy", "delivery_delay", "policy_query"):
-            out = retrieve_policy(state.user_query, fetch_k=10, top_k=3, alpha=0.85)
-            state.rag_results = _normalize_rag_output(out)
-
+        if intent in ("charges_query", "return_policy", "delivery_delay", "policy_query"):
+            out = retrieve_policy(user_query, fetch_k=10, top_k=3, alpha=0.85)
+            rag_results = _normalize_rag_output(out)
         else:
             # Also call RAG when we got a tool response but want policy backing
-            if state.tool_response is not None:
-                query = state.user_query or ""
-                out = retrieve_policy(query, fetch_k=6, top_k=2, alpha=0.85)
-                state.rag_results = _normalize_rag_output(out)
-            else:
-                state.rag_results = []
-    except TypeError:
-        # fallback in case retriever signature doesn't accept kwargs
-        try:
-            out = retrieve_policy(state.user_query, top_k=2)
-            state.rag_results = _normalize_rag_output(out)
-        except Exception as e:
-            state.errors.append(f"RAG error: {e}")
-            state.rag_results = []
+            if tool_response is not None:
+                out = retrieve_policy(user_query, fetch_k=6, top_k=2, alpha=0.85)
+                rag_results = _normalize_rag_output(out)
     except Exception as e:
-        state.errors.append(f"RAG error: {e}")
-        state.rag_results = []
+        # Fallback - try simpler signature
+        try:
+            out = retrieve_policy(user_query)
+            rag_results = _normalize_rag_output(out)
+        except Exception:
+            rag_results = []
+    
+    return {"rag_results": rag_results}
 
-    return state
 
-
-def compose_node(state: State) -> State:
+def compose_node(state: AgentState) -> Dict[str, Any]:
     """
-    Call composer to produce final_answer from tool_response + rag_results
+    Call composer to produce final_answer from tool_response + rag_results.
     """
     from .composer import compose_final_answer
+    from .state import State
+    
+    errors = list(state.get("errors", []))
+    
     try:
-        state.final_answer = compose_final_answer(state)
+        # Convert AgentState to legacy State for composer compatibility
+        legacy_state = State(
+            user_query=state.get("user_query", ""),
+            intent=state.get("intent"),
+            slots=state.get("slots", {}),
+            tool_response=state.get("tool_response"),
+            rag_results=state.get("rag_results", []),
+            final_answer=state.get("final_answer"),
+            history=state.get("history", []),
+            errors=errors
+        )
+        
+        final_answer = compose_final_answer(legacy_state)
     except Exception as e:
-        state.errors.append(str(e))
-        state.final_answer = "Sorry — something went wrong while composing the answer."
-    return state
+        errors.append(str(e))
+        final_answer = "Sorry — something went wrong while composing the answer."
+    
+    return {"final_answer": final_answer, "errors": errors}

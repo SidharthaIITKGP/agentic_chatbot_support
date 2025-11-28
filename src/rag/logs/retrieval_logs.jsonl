@@ -55,3 +55,6 @@
 {"timestamp": "2025-11-28T15:20:17.103259Z", "query": "9876", "fetch_k": 6, "top_k": 2, "alpha": 0.85, "final_doc_ids": ["refund_policy.txt", "return_policy.txt"], "confidence": 1.0}
 {"timestamp": "2025-11-28T15:20:26.164446Z", "query": "98762", "fetch_k": 6, "top_k": 2, "alpha": 0.85, "final_doc_ids": ["refund_policy.txt", "return_policy.txt"], "confidence": 1.0}
 {"timestamp": "2025-11-28T15:20:38.345290Z", "query": "great thanks for the help", "fetch_k": 6, "top_k": 2, "alpha": 0.85, "final_doc_ids": ["charges_policy.txt", "refund_policy.txt"], "confidence": 1.0}
+{"timestamp": "2025-11-28T16:11:46.086984Z", "query": "Where is my order 98762?", "fetch_k": 6, "top_k": 2, "alpha": 0.85, "final_doc_ids": ["return_policy.txt", "delivery_delay_policy.txt"], "confidence": 0.85}
+{"timestamp": "2025-11-28T17:02:16.293003Z", "query": "where is my order 98762", "fetch_k": 6, "top_k": 2, "alpha": 0.85, "final_doc_ids": ["return_policy.txt", "delivery_delay_policy.txt"], "confidence": 0.85}
+{"timestamp": "2025-11-28T17:03:06.166059Z", "query": "98762", "fetch_k": 6, "top_k": 2, "alpha": 0.85, "final_doc_ids": ["refund_policy.txt", "return_policy.txt"], "confidence": 1.0}

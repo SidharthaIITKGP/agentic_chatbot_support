@@ -22,6 +22,10 @@ st.set_page_config(
 st.title("💬 Customer Support Chatbot")
 st.markdown("Ask me about orders, refunds, returns, policies, or product availability!")
 
+# Show info banner about clearing memory if needed
+if "error_shown" not in st.session_state:
+    st.session_state.error_shown = False
+
 # Initialize session ID for memory
 if "session_id" not in st.session_state:
     st.session_state.session_id = "streamlit_user"
@@ -29,17 +33,19 @@ if "session_id" not in st.session_state:
 # If messages haven't been initialized, try to load from persistent memory
 if "messages" not in st.session_state:
     # load persistent memory and convert to UI-friendly chat format
-    mem = load_memory(st.session_state.session_id)
-    ui_messages = []
-    for entry in mem.get("messages", []):
-        # memory entries were stored as {"user": "...", "assistant": "..."}
-        if isinstance(entry, dict) and "user" in entry and "assistant" in entry:
-            ui_messages.append({"role": "user", "content": entry["user"]})
-            ui_messages.append({"role": "assistant", "content": entry["assistant"]})
-        else:
-            # fallback: store as a plain user entry if unexpected shape
-            ui_messages.append({"role": "user", "content": str(entry)})
-    st.session_state.messages = ui_messages
+    try:
+        mem = load_memory(st.session_state.session_id)
+        ui_messages = []
+        for entry in mem.get("messages", []):
+            # memory entries were stored as {"user": "...", "assistant": "..."}
+            if isinstance(entry, dict) and "user" in entry and "assistant" in entry:
+                ui_messages.append({"role": "user", "content": entry["user"]})
+                ui_messages.append({"role": "assistant", "content": entry["assistant"]})
+            # Skip any malformed entries
+        st.session_state.messages = ui_messages
+    except Exception:
+        # If memory loading fails, start fresh
+        st.session_state.messages = []
 
 # Sidebar controls
 with st.sidebar:
@@ -117,6 +123,13 @@ if prompt:
         with st.spinner("Thinking..."):
             state = run_agent_with_memory(prompt, session_id=st.session_state.session_id)
             response = state.final_answer or "Sorry — I couldn't produce an answer."
+    except AttributeError as e:
+        # Specific handling for State object issues - likely stale memory
+        if "'State' object has no attribute 'get'" in str(e):
+            response = "⚠️ **Memory format error detected.** This usually happens after a code update. Please click '**Clear Chat + Memory (persistent)**' in the sidebar to reset and try again."
+            st.session_state.error_shown = True
+        else:
+            response = f"Agent error: {e}"
     except Exception as e:
         response = f"Agent error: {e}"
 

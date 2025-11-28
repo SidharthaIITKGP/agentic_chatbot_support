@@ -1,0 +1,11 @@
+{
+  "last_order_id": "98762",
+  "last_product_id": null,
+  "last_intent": "order_status",
+  "messages": [
+    {
+      "user": "where is my order 98762",
+      "assistant": "Order 98762 is currently: Out for delivery. Expected delivery: 2025-01-24. Reason: High load at local distribution center.\n\n\n_Policy reference: return_policy.txt, delivery_delay_policy.txt_"
+    }
+  ]
+}

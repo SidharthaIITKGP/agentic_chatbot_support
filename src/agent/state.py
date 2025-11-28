@@ -1,11 +1,11 @@
 # src/agent/state.py
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List
+from typing import TypedDict, Optional, Dict, Any, List, Annotated
+from langgraph.graph import MessagesState
+from operator import add
 
-@dataclass
-class State:
+class AgentState(TypedDict):
     """
-    Simple state container for an agent turn.
+    State container for LangGraph agent.
     Fields:
       - user_query: original user text
       - intent: e.g. "order_status", "refund_status", "product_availability", "policy_query"
@@ -15,6 +15,24 @@ class State:
       - final_answer: text produced by composer
       - history: optional conversation history
       - errors: list of errors encountered
+    """
+    user_query: str
+    intent: Optional[str]
+    slots: Dict[str, Any]
+    tool_response: Optional[Dict[str, Any]]
+    rag_results: List[Dict[str, Any]]
+    final_answer: Optional[str]
+    history: List[Dict[str, Any]]
+    errors: Annotated[List[str], add]  # Use operator.add to append errors
+
+# Keep the old State class for backward compatibility during transition
+from dataclasses import dataclass, field
+
+@dataclass
+class State:
+    """
+    Legacy state container (for backward compatibility).
+    Use AgentState for new LangGraph implementation.
     """
     user_query: str
     intent: Optional[str] = None
