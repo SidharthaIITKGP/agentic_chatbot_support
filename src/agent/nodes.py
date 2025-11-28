@@ -1,7 +1,10 @@
 # src/agent/nodes.py
 """
-Nodes for LangGraph agent.
-Each node is a callable that receives AgentState and returns updated state dict.
+ReAct Nodes for LangGraph agent.
+Each node implements part of the Reasoning and Acting cycle:
+  1. reasoning_node: Thinks about what to do next
+  2. action_node: Executes the decided action (tool/RAG/finish)
+  3. observation_node: Processes results and updates scratchpad
 """
 
 from typing import Dict, Any
@@ -28,123 +31,242 @@ def _normalize_rag_output(out):
 
 def classify_intent_node(state: AgentState) -> Dict[str, Any]:
     """
-    Determine intent and extract simple slots. Handle follow-up case where user
-    replies with only digits (treat as order_id and inherit previous intent).
+    Initial step: Determine intent and extract simple slots.
+    Handle follow-up case where user replies with only digits.
     """
     raw = (state.get("user_query") or "").strip()
     slots = state.get("slots", {}).copy()
     intent = state.get("intent")
     history = state.get("history", [])
 
-    # --- 1) Quick follow-up: user replied with only digits -> treat as order_id slot ---
+    # Quick follow-up: user replied with only digits -> treat as order_id slot
     if raw.isdigit():
         slots["order_id"] = raw
-
-        # if we don't have a strong intent yet, try to inherit from history
         if not intent and history:
             prev = history[-1] if history else {}
             prev_intent = prev.get("intent")
             if prev_intent in ("order_status", "refund_status", "delivery_delay", None):
-                return {"intent": "order_status", "slots": slots}
-
-        # if current intent is ambiguous, prefer order_status for digits
+                return {"intent": "order_status", "slots": slots, "iteration": 0, "scratchpad": ""}
         if intent in (None, "", "policy_query"):
-            return {"intent": "order_status", "slots": slots}
+            return {"intent": "order_status", "slots": slots, "iteration": 0, "scratchpad": ""}
 
-    # --- 2) Otherwise use normal classifier ---
+    # Otherwise use normal classifier
     res = classify_intent(state.get("user_query", ""))
     new_intent = res.get("intent")
     extracted_slots = res.get("slots", {}) or {}
-    
-    # Merge slots
     slots.update(extracted_slots)
     
-    return {"intent": new_intent, "slots": slots}
+    return {"intent": new_intent, "slots": slots, "iteration": 0, "scratchpad": ""}
 
 
-def ask_for_slot_node(state: AgentState) -> Dict[str, Any]:
+def reasoning_node(state: AgentState) -> Dict[str, Any]:
     """
-    If intent requires a particular slot and it's missing, ask for it.
+    ReAct Reasoning Step: Agent thinks about what to do next.
+    Generates a thought and decides on the next action.
+    
+    Actions:
+      - ask_for_slot: Need more information from user
+      - call_tool: Execute a tool (order lookup, refund check, inventory)
+      - call_rag: Query policy knowledge base
+      - finish: Have enough information to answer
     """
     intent = state.get("intent")
     slots = state.get("slots", {})
+    iteration = state.get("iteration", 0)
+    scratchpad = state.get("scratchpad", "")
+    tool_response = state.get("tool_response")
+    rag_results = state.get("rag_results", [])
     
-    # Order-related intents that need order_id
+    # Build thought process
+    thought = f"Iteration {iteration + 1}: "
+    
+    # Check if we need slots
     if intent in ("order_status", "refund_status", "delivery_delay"):
         if not slots.get("order_id"):
-            return {"final_answer": CLARIFY_FOR_ORDER_ID}
-
-    # Product availability intent requires product_id
+            thought += "User needs order tracking but hasn't provided order ID. I should ask for it."
+            action = "ask_for_slot"
+            action_input = {"slot_type": "order_id"}
+            
+            updated_scratchpad = scratchpad + f"\nThought: {thought}\nAction: {action}"
+            return {
+                "thought": thought,
+                "action": action,
+                "action_input": action_input,
+                "scratchpad": updated_scratchpad,
+                "iteration": iteration + 1
+            }
+    
     if intent in ("product_availability", "inventory_check"):
         if not slots.get("product_id"):
-            return {"final_answer": CLARIFY_FOR_PRODUCT_ID}
+            thought += "User asking about product but no product ID. Need to ask for it."
+            action = "ask_for_slot"
+            action_input = {"slot_type": "product_id"}
+            
+            updated_scratchpad = scratchpad + f"\nThought: {thought}\nAction: {action}"
+            return {
+                "thought": thought,
+                "action": action,
+                "action_input": action_input,
+                "scratchpad": updated_scratchpad,
+                "iteration": iteration + 1
+            }
+    
+    # Decide if we need to call tools
+    if intent in ("order_status", "refund_status") and not tool_response:
+        thought += f"I have order ID {slots.get('order_id')}. I should call the {intent} tool to get current status."
+        action = "call_tool"
+        action_input = {"intent": intent, "slots": slots}
+        
+        updated_scratchpad = scratchpad + f"\nThought: {thought}\nAction: {action}"
+        return {
+            "thought": thought,
+            "action": action,
+            "action_input": action_input,
+            "scratchpad": updated_scratchpad,
+            "iteration": iteration + 1
+        }
+    
+    if intent in ("product_availability", "inventory_check") and not tool_response:
+        thought += f"I have product ID {slots.get('product_id')}. Calling inventory tool to check availability."
+        action = "call_tool"
+        action_input = {"intent": intent, "slots": slots}
+        
+        updated_scratchpad = scratchpad + f"\nThought: {thought}\nAction: {action}"
+        return {
+            "thought": thought,
+            "action": action,
+            "action_input": action_input,
+            "scratchpad": updated_scratchpad,
+            "iteration": iteration + 1
+        }
+    
+    # Decide if we need RAG
+    if intent in ("charges_query", "return_policy", "delivery_delay", "policy_query"):
+        if not rag_results:
+            thought += "This is a policy question. I should search the knowledge base for relevant information."
+            action = "call_rag"
+            action_input = {"query": state.get("user_query", "")}
+            
+            updated_scratchpad = scratchpad + f"\nThought: {thought}\nAction: {action}"
+            return {
+                "thought": thought,
+                "action": action,
+                "action_input": action_input,
+                "scratchpad": updated_scratchpad,
+                "iteration": iteration + 1
+            }
+    else:
+        # If we have tool response but no RAG yet, get supporting policy info
+        if tool_response and not rag_results:
+            thought += "I have the tool result. Let me get relevant policy information to provide complete context."
+            action = "call_rag"
+            action_input = {"query": state.get("user_query", "")}
+            
+            updated_scratchpad = scratchpad + f"\nThought: {thought}\nAction: {action}"
+            return {
+                "thought": thought,
+                "action": action,
+                "action_input": action_input,
+                "scratchpad": updated_scratchpad,
+                "iteration": iteration + 1
+            }
+    
+    # We have everything we need - finish
+    thought += "I have all the information needed. Time to compose the final answer."
+    action = "finish"
+    action_input = {}
+    
+    updated_scratchpad = scratchpad + f"\nThought: {thought}\nAction: {action}"
+    return {
+        "thought": thought,
+        "action": action,
+        "action_input": action_input,
+        "scratchpad": updated_scratchpad,
+        "iteration": iteration + 1
+    }
 
-    return {}
 
-
-def call_tool_node(state: AgentState) -> Dict[str, Any]:
+def action_node(state: AgentState) -> Dict[str, Any]:
     """
-    Call the appropriate tool based on intent & slots.
+    ReAct Action Step: Execute the action decided by reasoning_node.
     """
-    intent = state.get("intent")
-    slots = state.get("slots", {})
+    action = state.get("action")
+    action_input = state.get("action_input", {})
+    scratchpad = state.get("scratchpad", "")
     errors = list(state.get("errors", []))
     
-    tool_response = None
+    observation = ""
+    updates = {}
     
     try:
-        if intent == "order_status":
-            oid = slots.get("order_id")
-            if oid:
-                tool_response = get_order_status(oid)
-        elif intent == "refund_status":
-            oid = slots.get("order_id")
-            if oid:
-                tool_response = get_refund_status(oid)
-        elif intent == "product_availability":
-            pid = slots.get("product_id")
-            if pid:
-                tool_response = get_inventory(pid)
+        if action == "ask_for_slot":
+            slot_type = action_input.get("slot_type")
+            if slot_type == "order_id":
+                updates["final_answer"] = CLARIFY_FOR_ORDER_ID
+                observation = "Asked user for order ID. Waiting for response."
+            elif slot_type == "product_id":
+                updates["final_answer"] = CLARIFY_FOR_PRODUCT_ID
+                observation = "Asked user for product ID. Waiting for response."
+        
+        elif action == "call_tool":
+            intent = action_input.get("intent")
+            slots = action_input.get("slots", {})
+            
+            if intent == "order_status":
+                oid = slots.get("order_id")
+                if oid:
+                    tool_response = get_order_status(oid)
+                    updates["tool_response"] = tool_response
+                    observation = f"Retrieved order status: {tool_response.get('status', 'N/A')}"
+            
+            elif intent == "refund_status":
+                oid = slots.get("order_id")
+                if oid:
+                    tool_response = get_refund_status(oid)
+                    updates["tool_response"] = tool_response
+                    observation = f"Retrieved refund info: {tool_response.get('refund_status', 'N/A')}"
+            
+            elif intent in ("product_availability", "inventory_check"):
+                pid = slots.get("product_id")
+                if pid:
+                    tool_response = get_inventory(pid)
+                    updates["tool_response"] = tool_response
+                    observation = f"Retrieved inventory: {tool_response.get('availability', 'N/A')}"
+        
+        elif action == "call_rag":
+            query = action_input.get("query", state.get("user_query", ""))
+            intent = state.get("intent")
+            
+            # Adjust RAG parameters based on intent
+            if intent in ("charges_query", "return_policy", "delivery_delay", "policy_query"):
+                out = retrieve_policy(query, fetch_k=10, top_k=3, alpha=0.85)
+            else:
+                out = retrieve_policy(query, fetch_k=6, top_k=2, alpha=0.85)
+            
+            rag_results = _normalize_rag_output(out)
+            updates["rag_results"] = rag_results
+            observation = f"Retrieved {len(rag_results)} relevant policy documents."
+        
+        elif action == "finish":
+            observation = "Ready to compose final answer."
+    
     except Exception as e:
         errors.append(str(e))
+        observation = f"Error during action: {str(e)}"
     
-    return {"tool_response": tool_response, "errors": errors}
-
-
-def call_rag_node(state: AgentState) -> Dict[str, Any]:
-    """
-    For intents that want policy lookup or when tool response exists,
-    call the retriever and store normalized results.
-    """
-    intent = state.get("intent")
-    user_query = state.get("user_query", "")
-    tool_response = state.get("tool_response")
-    rag_results = []
+    # Update scratchpad with observation
+    updated_scratchpad = scratchpad + f"\nObservation: {observation}"
     
-    try:
-        # Intents that primarily want policy text
-        if intent in ("charges_query", "return_policy", "delivery_delay", "policy_query"):
-            out = retrieve_policy(user_query, fetch_k=10, top_k=3, alpha=0.85)
-            rag_results = _normalize_rag_output(out)
-        else:
-            # Also call RAG when we got a tool response but want policy backing
-            if tool_response is not None:
-                out = retrieve_policy(user_query, fetch_k=6, top_k=2, alpha=0.85)
-                rag_results = _normalize_rag_output(out)
-    except Exception as e:
-        # Fallback - try simpler signature
-        try:
-            out = retrieve_policy(user_query)
-            rag_results = _normalize_rag_output(out)
-        except Exception:
-            rag_results = []
+    updates["observation"] = observation
+    updates["scratchpad"] = updated_scratchpad
+    updates["errors"] = errors
     
-    return {"rag_results": rag_results}
+    return updates
 
 
 def compose_node(state: AgentState) -> Dict[str, Any]:
     """
-    Call composer to produce final_answer from tool_response + rag_results.
+    Final step: Compose the answer using all gathered information.
     """
     from .composer import compose_final_answer
     from .state import State
@@ -165,8 +287,14 @@ def compose_node(state: AgentState) -> Dict[str, Any]:
         )
         
         final_answer = compose_final_answer(legacy_state)
+        
+        # Add final thought to scratchpad
+        scratchpad = state.get("scratchpad", "")
+        scratchpad += f"\nFinal Answer: {final_answer[:100]}..."
+        
     except Exception as e:
         errors.append(str(e))
         final_answer = "Sorry — something went wrong while composing the answer."
+        scratchpad = state.get("scratchpad", "") + f"\nError: {str(e)}"
     
-    return {"final_answer": final_answer, "errors": errors}
+    return {"final_answer": final_answer, "scratchpad": scratchpad, "errors": errors}

@@ -1,59 +1,104 @@
 # src/agent/agent_graph.py
 """
-LangGraph-based orchestrator for the customer support agent.
-Flow:
-  1. classify_intent_node
-  2. ask_for_slot_node (may short-circuit to END)
-  3. call_tool_node (if applicable)
-  4. call_rag_node
-  5. compose_node
+ReAct-based LangGraph orchestrator for the customer support agent.
+
+ReAct Pattern Flow:
+  1. classify_intent_node: Initial classification
+  2. reasoning_node: Think about what to do (Thought)
+  3. action_node: Execute the action (Action)
+  4. Loop back to reasoning_node or proceed to compose_node based on action
+  5. compose_node: Generate final answer
+
+The agent iterates through Thought → Action → Observation cycles until
+it has enough information to answer, with a maximum iteration limit.
 """
 from typing import Literal
 from langgraph.graph import StateGraph, END
 from .state import AgentState, State
 from .nodes import (
     classify_intent_node,
-    ask_for_slot_node,
-    call_tool_node,
-    call_rag_node,
+    reasoning_node,
+    action_node,
     compose_node,
 )
 
-# Define routing logic
-def should_continue_after_slot_check(state: AgentState) -> Literal["continue", "end"]:
-    """Route to END if we have a final_answer (clarification needed), otherwise continue."""
-    if state.get("final_answer"):
-        return "end"
-    return "continue"
+# Maximum iterations to prevent infinite loops
+MAX_ITERATIONS = 5
 
-# Build the LangGraph
+# Define routing logic
+def should_continue_reasoning(state: AgentState) -> Literal["action", "end"]:
+    """
+    After reasoning: proceed to action if we haven't hit max iterations,
+    otherwise force to end.
+    """
+    iteration = state.get("iteration", 0)
+    if iteration > MAX_ITERATIONS:
+        return "end"
+    return "action"
+
+
+def route_after_action(state: AgentState) -> Literal["reasoning", "compose", "end"]:
+    """
+    After action: determine next step based on what action was taken.
+    - If action was "ask_for_slot": end (need user input)
+    - If action was "finish": go to compose
+    - Otherwise: loop back to reasoning for next iteration
+    """
+    action = state.get("action")
+    iteration = state.get("iteration", 0)
+    
+    # Safety: prevent infinite loops
+    if iteration >= MAX_ITERATIONS:
+        return "compose"
+    
+    # If we asked for user input, stop here
+    if action == "ask_for_slot":
+        return "end"
+    
+    # If reasoning decided to finish, compose answer
+    if action == "finish":
+        return "compose"
+    
+    # Otherwise continue reasoning loop
+    return "reasoning"
+
+
+# Build the ReAct LangGraph
 def create_agent_graph():
-    """Create and compile the LangGraph workflow."""
+    """Create and compile the ReAct LangGraph workflow."""
     workflow = StateGraph(AgentState)
     
     # Add nodes
     workflow.add_node("classify_intent", classify_intent_node)
-    workflow.add_node("ask_for_slot", ask_for_slot_node)
-    workflow.add_node("call_tool", call_tool_node)
-    workflow.add_node("call_rag", call_rag_node)
+    workflow.add_node("reasoning", reasoning_node)
+    workflow.add_node("action", action_node)
     workflow.add_node("compose", compose_node)
     
     # Define edges
     workflow.set_entry_point("classify_intent")
-    workflow.add_edge("classify_intent", "ask_for_slot")
+    workflow.add_edge("classify_intent", "reasoning")
     
-    # Conditional edge after slot check
+    # Conditional edge after reasoning
     workflow.add_conditional_edges(
-        "ask_for_slot",
-        should_continue_after_slot_check,
+        "reasoning",
+        should_continue_reasoning,
         {
-            "continue": "call_tool",
+            "action": "action",
             "end": END
         }
     )
     
-    workflow.add_edge("call_tool", "call_rag")
-    workflow.add_edge("call_rag", "compose")
+    # Conditional edge after action - creates the ReAct loop
+    workflow.add_conditional_edges(
+        "action",
+        route_after_action,
+        {
+            "reasoning": "reasoning",  # Loop back for next iteration
+            "compose": "compose",
+            "end": END
+        }
+    )
+    
     workflow.add_edge("compose", END)
     
     return workflow.compile()
@@ -63,7 +108,7 @@ agent_graph = create_agent_graph()
 
 def run_agent(user_query: str, history=None) -> State:
     """
-    Run the agent using LangGraph.
+    Run the ReAct agent using LangGraph.
     Returns legacy State object for backward compatibility.
     """
     # Create initial state
@@ -71,10 +116,16 @@ def run_agent(user_query: str, history=None) -> State:
         "user_query": user_query,
         "intent": None,
         "slots": {},
+        "thought": None,
+        "action": None,
+        "action_input": None,
+        "observation": None,
         "tool_response": None,
         "rag_results": [],
         "final_answer": None,
         "history": history or [],
+        "iteration": 0,
+        "scratchpad": "",
         "errors": []
     }
     
@@ -96,7 +147,7 @@ def run_agent(user_query: str, history=None) -> State:
 # ---- Persistent-memory enabled runner ----
 def run_agent_with_memory(user_query: str, session_id: str = "default_session") -> State:
     """
-    Run the agent pipeline with persistent memory using LangGraph.
+    Run the ReAct agent pipeline with persistent memory using LangGraph.
     Memory fields used: last_order_id, last_product_id, last_intent, messages.
     """
     from .memory import load_memory, save_memory
@@ -127,10 +178,16 @@ def run_agent_with_memory(user_query: str, session_id: str = "default_session") 
         "user_query": user_query,
         "intent": None,
         "slots": slots,
+        "thought": None,
+        "action": None,
+        "action_input": None,
+        "observation": None,
         "tool_response": None,
         "rag_results": [],
         "final_answer": None,
         "history": history,
+        "iteration": 0,
+        "scratchpad": "",
         "errors": []
     }
     
@@ -142,7 +199,7 @@ def run_agent_with_memory(user_query: str, session_id: str = "default_session") 
         last_intent = mem.get("last_intent")
         if result.get("slots", {}).get("order_id") and last_intent in ("order_status", "refund_status", "delivery_delay"):
             result["intent"] = last_intent
-            # Re-run from call_tool with corrected intent
+            # Re-run from classify_intent with corrected intent
             result = agent_graph.invoke(result)
         elif result.get("slots", {}).get("product_id") and last_intent in ("product_availability", "inventory_check"):
             result["intent"] = last_intent
