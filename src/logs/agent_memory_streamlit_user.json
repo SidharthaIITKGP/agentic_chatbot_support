@@ -1,7 +1,7 @@
 {
   "last_order_id": "98762",
   "last_product_id": "P123",
-  "last_intent": "policy_query",
+  "last_intent": "order_status",
   "messages": [
     {
       "user": "where is my order",
@@ -46,6 +46,10 @@
     {
       "user": "when will i recieve the order",
       "assistant": "\n_Policy reference: delivery_delay_policy.txt, refund_policy.txt, return_policy.txt_"
+    },
+    {
+      "user": "where is my order",
+      "assistant": "I can check that for you \u2014 could you share the order ID (e.g., 98762)?"
     }
   ]
 }

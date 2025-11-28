@@ -166,12 +166,18 @@ def run_agent_with_memory(user_query: str, session_id: str = "default_session") 
             # Skip non-dict entries (might be old State objects)
             continue
     
-    # Seed slots from memory
+    # Seed slots from memory - ONLY for digit-only follow-ups
+    # Don't auto-fill for regular queries to avoid using stale context
     slots = {}
-    if mem.get("last_order_id"):
-        slots["order_id"] = mem.get("last_order_id")
-    if mem.get("last_product_id"):
-        slots["product_id"] = mem.get("last_product_id")
+    query_stripped = user_query.strip()
+    
+    # Only seed from memory if user just typed digits (clear follow-up response)
+    if query_stripped.isdigit():
+        # This is a follow-up with just an order/product ID
+        # Don't seed anything - let the classifier handle it fresh
+        pass
+    # For all other queries, start fresh without memory slots
+    # This prevents "where is my order" from auto-using old order ID
 
     # Create initial state
     initial_state: AgentState = {
