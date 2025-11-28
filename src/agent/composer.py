@@ -67,21 +67,20 @@ def compose_final_answer(state: State) -> str:
     if tool_part:
         pieces.append(tool_part)
 
-    # RAG-based policy snippets
+    # RAG-based policy snippets - only mention policy exists, don't show excerpts
     if state.rag_results:
-        # include top snippet(s) with provenance
-        snippets = []
+        # Just add a brief note that policy info is available
         provenance = []
         for s in state.rag_results:
-            txt = s.get("text", "").strip()
             meta = s.get("metadata", {}) or {}
             doc_id = meta.get("doc_id") or "policy"
-            snippets.append(f"- {txt[:400].strip()}...")
-            provenance.append(f"{doc_id}")
-        pieces.append("Relevant policy excerpts:\n" + "\n\n".join(snippets))
-        pieces.append(COMPOSER_POLICY_FOOTER.format(provenance=", ".join(provenance)))
+            if doc_id not in provenance:
+                provenance.append(doc_id)
+        # Only mention policy reference if needed
+        if provenance:
+            pieces.append(f"\n_Policy reference: {', '.join(provenance)}_")
     elif not tool_part:
         # nothing found
         return COMPOSER_NO_INFO
 
-    return COMPOSER_HEADER + "\n\n".join(pieces)
+    return "\n\n".join(pieces)
