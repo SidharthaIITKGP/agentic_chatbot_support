@@ -247,8 +247,7 @@ if __name__ == "__main__":
     if str(PROJECT_ROOT) not in sys.path:
         sys.path.insert(0, str(PROJECT_ROOT))
     
-    from src.agent.agent_graph import run_agent
-    
+    # run_agent is already defined in this file, no need to import
     q = " ".join(sys.argv[1:]) or input("User query: ")
     s = run_agent(q)
     print("=== FINAL ANSWER ===")
