@@ -1,0 +1,22 @@
+PAYMENT POLICY
+
+1. Accepted Payment Methods
+- UPI, Wallets, Debit/Credit Cards, Net Banking, EMI, COD.
+
+2. COD Restrictions
+- COD not available for high-value orders.
+- COD fee may apply for certain pincode locations.
+
+3. EMI Rules
+- EMI is available for orders above ₹3,000.
+- EMI interest depends on the issuing bank.
+
+4. Failed Payment Handling
+- If money is debited but order not created, amount is refunded within 3–5 business days.
+- If payment fails repeatedly, try another payment method or contact support.
+
+5. Payment Security
+- All transactions are encrypted and follow RBI compliance guidelines.
+
+6. Verification
+- High-value transactions may require OTP or two-factor authentication.

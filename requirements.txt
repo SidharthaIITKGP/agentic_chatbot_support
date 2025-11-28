@@ -1,0 +1,27 @@
+# --- Core LLM & Agent Frameworks ---
+langchain
+langgraph
+
+# --- Embeddings (Free + OpenAI optional) ---
+sentence-transformers
+tiktoken
+openai                     # optional, for OpenAI embeddings/LLMs
+
+# --- Vector Stores ---
+chromadb
+faiss-cpu                  # optional, for FAISS retriever if needed
+
+# --- Document Loading & Processing ---
+langchain-community
+unstructured               # optional, helps with any future doc parsing
+
+# --- Web UI (Streamlit) ---
+streamlit
+
+# --- Model Serving & API Utilities ---
+requests
+pydantic
+
+# --- Testing & Dev Tools ---
+pytest
+python-dotenv

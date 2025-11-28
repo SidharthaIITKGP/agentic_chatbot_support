@@ -1,0 +1,71 @@
+{
+  "98762": {
+    "order_id": "98762",
+    "refund_status": "Not initiated",
+    "refund_amount": 859.0,
+    "refund_initiated_at": null,
+    "processed_at": null,
+    "refund_mode": null,
+    "masked_account": null,
+    "delay_reason": null,
+    "verification_required": false,
+    "retry_count": 0,
+    "notes": "Order still in transit; refund applicable only if returned or cancelled."
+  },
+
+  "54321": {
+    "order_id": "54321",
+    "refund_status": "Processed",
+    "refund_amount": 2149.0,
+    "refund_initiated_at": "2025-01-25T10:10:00Z",
+    "processed_at": "2025-01-26T08:30:00Z",
+    "refund_mode": "original",
+    "masked_account": "Card **** 7745",
+    "delay_reason": null,
+    "verification_required": false,
+    "retry_count": 0,
+    "notes": "Refund successfully credited back to original payment method."
+  },
+
+  "11223": {
+    "order_id": "11223",
+    "refund_status": "Not initiated",
+    "refund_amount": 3499.0,
+    "refund_initiated_at": null,
+    "processed_at": null,
+    "refund_mode": "COD_refund",
+    "masked_account": null,
+    "delay_reason": null,
+    "verification_required": true,
+    "retry_count": 0,
+    "notes": "COD refunds require customer bank details before initiation."
+  },
+
+  "99887": {
+    "order_id": "99887",
+    "refund_status": "Pending",
+    "refund_amount": 16249.0,
+    "refund_initiated_at": "2025-01-16T11:00:00Z",
+    "processed_at": null,
+    "refund_mode": "original",
+    "masked_account": "UPI: mira@upi",
+    "delay_reason": "Payment gateway verification delay due to replacement request.",
+    "verification_required": false,
+    "retry_count": 1,
+    "notes": "Replacement initiated; refund on hold until replacement processed."
+  },
+
+  "44556": {
+    "order_id": "44556",
+    "refund_status": "Pending",
+    "refund_amount": 999.0,
+    "refund_initiated_at": "2025-01-18T10:00:00Z",
+    "processed_at": null,
+    "refund_mode": "original",
+    "masked_account": "Bank: HDFC **** 2211",
+    "delay_reason": "Bank processing time (up to 5 business days).",
+    "verification_required": false,
+    "retry_count": 0,
+    "notes": "User cancelled before shipping; refund in standard processing queue."
+  }
+}

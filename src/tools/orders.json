@@ -1,0 +1,221 @@
+{
+  "98762": {
+    "order_id": "98762",
+    "customer_id": "C1001",
+    "customer_contact": {
+      "email": "sidharth@example.com",
+      "phone": "+919876543210"
+    },
+    "items": [
+      {
+        "product_id": "P123",
+        "name": "Wireless Mouse",
+        "qty": 1,
+        "price": 799.0,
+        "product_mrp": 999.0
+      }
+    ],
+    "order_total": 859.0,
+    "tax_amount": 60.0,
+    "shipping_charges": 0.0,
+    "cod_charge": null,
+    "payment_type": "prepaid",
+    "payment_status": "paid",
+    "order_status": "Out for delivery",
+    "status_history": [
+      {"status": "Placed", "timestamp": "2025-01-20T09:15:00Z", "note": ""},
+      {"status": "Packed", "timestamp": "2025-01-21T02:12:00Z", "note": ""},
+      {"status": "Shipped", "timestamp": "2025-01-25T08:30:00Z", "note": "AWB: TRK12345"},
+      {"status": "Out for delivery", "timestamp": "2025-01-26T07:00:00Z", "note": "Courier out for delivery"}
+    ],
+    "tracking_id": "TRK12345",
+    "shipping_partner": "SpeedyCouriers",
+    "expected_delivery": "2025-01-24",
+    "last_updated": "2025-01-28T10:00:00Z",
+    "delay_reason": "High load at local distribution center",
+    "cancellation": {
+      "requested": false,
+      "requested_at": null,
+      "cancelled_at": null,
+      "cancellation_fee": null,
+      "cancelled_by": null
+    },
+    "refund": {
+      "status": "Not initiated",
+      "amount": null,
+      "processed_at": null,
+      "refund_mode": null
+    },
+    "replacement": {
+      "status": "Not initiated",
+      "reason": null,
+      "created_at": null
+    },
+    "damage_report": null,
+    "warranty_info": {
+      "warranty_period_months": 12,
+      "warranty_start_date": "2025-01-24",
+      "warranty_provider": "Manufacturer"
+    },
+    "notes": "High priority customer",
+    "created_at": "2025-01-20T09:10:00Z",
+    "source": "web"
+  },
+
+  "54321": {
+    "order_id": "54321",
+    "customer_id": "C2002",
+    "customer_contact": {
+      "email": "ankita@example.com",
+      "phone": "+919885443322"
+    },
+    "items": [
+      {
+        "product_id": "P999",
+        "name": "Bluetooth Headphones",
+        "qty": 1,
+        "price": 1999.0,
+        "product_mrp": 2499.0
+      }
+    ],
+    "order_total": 2149.0,
+    "tax_amount": 150.0,
+    "shipping_charges": 0.0,
+    "cod_charge": null,
+    "payment_type": "prepaid",
+    "payment_status": "paid",
+    "order_status": "Delivered",
+    "status_history": [
+      {"status": "Placed", "timestamp": "2025-01-18T11:10:00Z", "note": ""},
+      {"status": "Packed", "timestamp": "2025-01-19T05:20:00Z", "note": ""},
+      {"status": "Shipped", "timestamp": "2025-01-20T06:00:00Z", "note": "AWB: TRK54321"},
+      {"status": "Delivered", "timestamp": "2025-01-24T14:45:00Z", "note": "Delivered to customer"}
+    ],
+    "tracking_id": "TRK54321",
+    "shipping_partner": "QuickShip",
+    "expected_delivery": "2025-01-24",
+    "last_updated": "2025-01-24T14:45:00Z",
+    "delay_reason": null,
+    "cancellation": {
+      "requested": false, "requested_at": null, "cancelled_at": null,
+      "cancellation_fee": null, "cancelled_by": null
+    },
+    "refund": {
+      "status": "Processed",
+      "amount": 2149.0,
+      "processed_at": "2025-01-26T08:30:00Z",
+      "refund_mode": "original"
+    },
+    "replacement": {"status": "Not initiated", "reason": null, "created_at": null},
+    "damage_report": null,
+    "warranty_info": {"warranty_period_months": 6, "warranty_start_date": "2025-01-24", "warranty_provider": "Brand"},
+    "notes": "",
+    "created_at": "2025-01-18T11:05:00Z",
+    "source": "mobile"
+  },
+
+  "11223": {
+    "order_id": "11223",
+    "customer_id": "C3003",
+    "customer_contact": {
+      "email": "rahul@example.com",
+      "phone": "+917788552200"
+    },
+    "items": [
+      {"product_id": "P777", "name": "Kitchen Mixer Grinder", "qty": 1, "price": 3299.0, "product_mrp": 3999.0}
+    ],
+    "order_total": 3499.0,
+    "tax_amount": 200.0,
+    "shipping_charges": 99.0,
+    "cod_charge": 50.0,
+    "payment_type": "COD",
+    "payment_status": "pending",
+    "order_status": "Shipped",
+    "status_history": [
+      {"status": "Placed", "timestamp": "2025-02-01T08:00:00Z", "note": ""},
+      {"status": "Packed", "timestamp": "2025-02-02T10:22:00Z", "note": ""},
+      {"status": "Shipped", "timestamp": "2025-02-03T09:30:00Z", "note": "AWB: TRK11223"}
+    ],
+    "tracking_id": "TRK11223",
+    "shipping_partner": "ExpressGo",
+    "expected_delivery": "2025-02-06",
+    "last_updated": "2025-02-03T09:30:00Z",
+    "delay_reason": null,
+    "cancellation": {"requested": false, "requested_at": null, "cancelled_at": null, "cancellation_fee": null, "cancelled_by": null},
+    "refund": {"status": "Not initiated", "amount": null, "processed_at": null, "refund_mode": null},
+    "replacement": {"status": "Not initiated", "reason": null, "created_at": null},
+    "damage_report": null,
+    "warranty_info": {"warranty_period_months": 24, "warranty_start_date": "2025-02-06", "warranty_provider": "Brand"},
+    "notes": "",
+    "created_at": "2025-02-01T07:55:00Z",
+    "source": "web"
+  },
+
+  "99887": {
+    "order_id": "99887",
+    "customer_id": "C4004",
+    "customer_contact": {"email": "mira@example.com", "phone": "+919000112233"},
+    "items": [
+      {"product_id": "P555", "name": "Smartphone", "qty": 1, "price": 15999.0, "product_mrp": 18999.0}
+    ],
+    "order_total": 16249.0,
+    "tax_amount": 250.0,
+    "shipping_charges": 0.0,
+    "cod_charge": null,
+    "payment_type": "emi",
+    "payment_status": "paid",
+    "order_status": "Delivered",
+    "status_history": [
+      {"status": "Placed", "timestamp": "2025-01-10T10:30:00Z", "note": ""},
+      {"status": "Packed", "timestamp": "2025-01-11T06:00:00Z", "note": ""},
+      {"status": "Shipped", "timestamp": "2025-01-12T05:50:00Z", "note": "AWB: TRK99887"},
+      {"status": "Delivered", "timestamp": "2025-01-14T16:20:00Z", "note": "Delivered to customer"}
+    ],
+    "tracking_id": "TRK99887",
+    "shipping_partner": "FastShip",
+    "expected_delivery": "2025-01-14",
+    "last_updated": "2025-01-14T16:20:00Z",
+    "delay_reason": null,
+    "cancellation": {"requested": false, "requested_at": null, "cancelled_at": null, "cancellation_fee": null, "cancelled_by": null},
+    "refund": {"status": "Not initiated", "amount": null, "processed_at": null, "refund_mode": null},
+    "replacement": {"status": "Requested", "reason": "Screen flickering", "created_at": "2025-01-15T09:30:00Z"},
+    "damage_report": {"reported": true, "photos": [], "note": "Display issue out of box", "reported_at": "2025-01-15T09:00:00Z"},
+    "warranty_info": {"warranty_period_months": 12, "warranty_start_date": "2025-01-14", "warranty_provider": "Brand Service Center"},
+    "notes": "Replacement requested",
+    "created_at": "2025-01-10T10:00:00Z",
+    "source": "mobile"
+  },
+
+  "44556": {
+    "order_id": "44556",
+    "customer_id": "C5005",
+    "customer_contact": {"email": "dev@example.com", "phone": "+918800221133"},
+    "items": [
+      {"product_id": "P888", "name": "Electric Kettle", "qty": 1, "price": 899.0, "product_mrp": 1299.0}
+    ],
+    "order_total": 999.0,
+    "tax_amount": 100.0,
+    "shipping_charges": 40.0,
+    "cod_charge": null,
+    "payment_type": "prepaid",
+    "payment_status": "paid",
+    "order_status": "Cancelled",
+    "status_history": [
+      {"status": "Placed", "timestamp": "2025-01-18T08:00:00Z", "note": ""},
+      {"status": "Cancelled", "timestamp": "2025-01-18T09:30:00Z", "note": "User requested cancellation"}
+    ],
+    "tracking_id": null,
+    "shipping_partner": null,
+    "expected_delivery": "2025-01-22",
+    "last_updated": "2025-01-18T09:30:00Z",
+    "delay_reason": null,
+    "cancellation": {"requested": true, "requested_at": "2025-01-18T09:20:00Z", "cancelled_at": "2025-01-18T09:30:00Z", "cancellation_fee": 0, "cancelled_by": "user"},
+    "refund": {"status": "Pending", "amount": 999.0, "processed_at": null, "refund_mode": "original"},
+    "replacement": {"status": "Not initiated", "reason": null, "created_at": null},
+    "damage_report": null,
+    "warranty_info": null,
+    "notes": "Refund pending",
+    "created_at": "2025-01-18T07:58:00Z",
+    "source": "web"
+  }
+}
