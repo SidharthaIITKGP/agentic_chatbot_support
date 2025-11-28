@@ -1,52 +1,8 @@
 {
-  "last_order_id": "98762",
-  "last_product_id": "P123",
+  "last_order_id": null,
+  "last_product_id": null,
   "last_intent": "order_status",
   "messages": [
-    {
-      "user": "where is my order",
-      "assistant": "I can check that for you \u2014 could you share the order ID (e.g., 98762)?"
-    },
-    {
-      "user": "where is my order",
-      "assistant": "I can check that for you \u2014 could you share the order ID (e.g., 98762)?"
-    },
-    {
-      "user": "98761",
-      "assistant": "I couldn't find the order 98761. Please check the order ID.\n\n\n_Policy reference: refund_policy.txt, return_policy.txt_"
-    },
-    {
-      "user": "98761",
-      "assistant": "I couldn't find the order 98761. Please check the order ID.\n\n\n_Policy reference: refund_policy.txt, return_policy.txt_"
-    },
-    {
-      "user": "98762",
-      "assistant": "Order 98762 is currently: Out for delivery. Expected delivery: 2025-01-24. Reason: High load at local distribution center.\n\n\n_Policy reference: refund_policy.txt, return_policy.txt_"
-    },
-    {
-      "user": "98762",
-      "assistant": "Order 98762 is currently: Out for delivery. Expected delivery: 2025-01-24. Reason: High load at local distribution center.\n\n\n_Policy reference: refund_policy.txt, return_policy.txt_"
-    },
-    {
-      "user": "okk what about product number P123 is it in stock",
-      "assistant": "Product P123: In stock. Quantity available: 42.\n\n\n_Policy reference: replacement_damage_policy.txt, return_policy.txt_"
-    },
-    {
-      "user": "okk what about product number P123 is it in stock",
-      "assistant": "Product P123: In stock. Quantity available: 42.\n\n\n_Policy reference: replacement_damage_policy.txt, return_policy.txt_"
-    },
-    {
-      "user": "great now can i cancel my order",
-      "assistant": "\n_Policy reference: cancellation_policy.txt, refund_policy.txt, return_policy.txt_"
-    },
-    {
-      "user": "great now can i cancel my order",
-      "assistant": "\n_Policy reference: cancellation_policy.txt, refund_policy.txt, return_policy.txt_"
-    },
-    {
-      "user": "when will i recieve the order",
-      "assistant": "\n_Policy reference: delivery_delay_policy.txt, refund_policy.txt, return_policy.txt_"
-    },
     {
       "user": "where is my order",
       "assistant": "I can check that for you \u2014 could you share the order ID (e.g., 98762)?"

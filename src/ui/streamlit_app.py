@@ -126,56 +126,11 @@ if prompt:
     # Call agent (wrapped in try/except)
     try:
         with st.spinner("Thinking..."):
-            # Import agent_graph to get full state with scratchpad
-            from src.agent.agent_graph import agent_graph
-            from src.agent.memory import load_memory, save_memory
-            
-            # Load memory
-            mem = load_memory(st.session_state.session_id)
-            history_raw = mem.get("messages", []) or []
-            history = [entry for entry in history_raw if isinstance(entry, dict)]
-            
-            slots = {}
-            if mem.get("last_order_id"):
-                slots["order_id"] = mem.get("last_order_id")
-            if mem.get("last_product_id"):
-                slots["product_id"] = mem.get("last_product_id")
-            
-            # Create initial state
-            initial_state = {
-                "user_query": prompt,
-                "intent": None,
-                "slots": slots,
-                "thought": None,
-                "action": None,
-                "action_input": None,
-                "observation": None,
-                "tool_response": None,
-                "rag_results": [],
-                "final_answer": None,
-                "history": history,
-                "iteration": 0,
-                "scratchpad": "",
-                "errors": []
-            }
-            
-            # Run graph and get full result
-            result = agent_graph.invoke(initial_state)
-            
-            response = result.get("final_answer") or "Sorry — I couldn't produce an answer."
-            scratchpad = result.get("scratchpad", "")
-            
-            # Update memory
-            if result.get("slots", {}).get("order_id"):
-                mem["last_order_id"] = result["slots"]["order_id"]
-            if result.get("slots", {}).get("product_id"):
-                mem["last_product_id"] = result["slots"]["product_id"]
-            if result.get("intent"):
-                mem["last_intent"] = result["intent"]
-            mem_msgs = mem.get("messages", []) or []
-            mem_msgs.append({"user": prompt, "assistant": response})
-            mem["messages"] = mem_msgs[-20:]
-            save_memory(st.session_state.session_id, mem)
+            state = run_agent_with_memory(prompt, session_id=st.session_state.session_id)
+            response = state.final_answer or "Sorry — I couldn't produce an answer."
+            # For now, scratchpad not available from run_agent_with_memory
+            # Would need to return full result dict to show reasoning
+            scratchpad = ""
             
     except AttributeError as e:
         # Specific handling for State object issues - likely stale memory
