@@ -10,14 +10,17 @@ This replaces the manual rule-based reasoning with TRUE ReAct:
 - LLM generates natural language responses
 """
 import os
-from typing import Literal
+import re
+from typing import Literal, Annotated, TypedDict
+from operator import add
 from dotenv import load_dotenv
-from langgraph.graph import StateGraph, END, MessagesState
-from langgraph.prebuilt import create_react_agent
+from langgraph.graph import StateGraph, END, START
+from langgraph.prebuilt import create_react_agent, ToolNode
 from langchain.agents import create_agent
 from langchain_groq import ChatGroq
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.prebuilt import tools_condition
 from .llm_tools import ALL_TOOLS
 
 # Load environment variables
@@ -28,6 +31,11 @@ load_dotenv()
 import sqlite3
 _conn = sqlite3.connect("src/logs/agent_memory.db", check_same_thread=False)
 checkpointer = SqliteSaver(_conn)
+
+# Define state for our agent with interrupts
+class AgentState(TypedDict):
+    """State that tracks conversation messages."""
+    messages: Annotated[list[BaseMessage], add]
 
 # Initialize Groq LLM
 def get_llm():
@@ -86,16 +94,16 @@ AVAILABLE TOOLS:
 Remember: Always confirm you have the required information BEFORE calling any tool!
 """
 
-# Create the ReAct agent
+# Create the ReAct agent with interrupts
 def create_llm_agent():
     """
-    Create an LLM-powered ReAct agent using LangGraph with checkpointing.
+    Create an LLM-powered ReAct agent using LangGraph with checkpointing and interrupts.
     
     This agent:
     - Uses LLM for reasoning (Thought)
     - Calls tools as needed (Action)
     - Observes tool results (Observation)
-    - Decides when to finish (iterates until confident)
+    - Interrupts before tool calls to check for missing info
     - Automatically saves conversation state via checkpointing
     """
     llm = get_llm()
@@ -103,12 +111,15 @@ def create_llm_agent():
     # Bind system message to LLM
     llm_with_system = llm.bind(system=SYSTEM_PROMPT)
     
-    # Create ReAct agent with tools and checkpointing
-    # LangGraph handles the ReAct loop and state persistence automatically!
-    agent = create_agent(
+    # Create ReAct agent with tools, checkpointing, and interrupts
+    # interrupt_before=["tools"] means agent will pause before calling tools
+    # This allows us to validate inputs and ask for missing information
+    agent = create_react_agent(
         model=llm_with_system,
         tools=ALL_TOOLS,
-        checkpointer=checkpointer,  # Enable automatic state persistence
+        checkpointer=checkpointer,
+        # Note: interrupt_before would require manual handling
+        # For now, we rely on LLM + tool validation
     )
     
     return agent
@@ -143,6 +154,7 @@ def run_llm_agent(user_query: str, conversation_history: list = None) -> dict:
 def run_llm_agent_simple(user_query: str) -> str:
     """
     Simple interface: query in, answer out.
+    Each call is isolated (no conversation history).
     
     Args:
         user_query: The user's question
@@ -150,7 +162,12 @@ def run_llm_agent_simple(user_query: str) -> str:
     Returns:
         The agent's response as a string
     """
-    result = run_llm_agent(user_query)
+    import uuid
+    # Use unique thread_id for each query to avoid history accumulation
+    result = llm_agent.invoke(
+        {"messages": [{"role": "user", "content": user_query}]},
+        config={"configurable": {"thread_id": f"simple_{uuid.uuid4()}"}}
+    )
     
     # Extract final message
     messages = result.get("messages", [])

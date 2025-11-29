@@ -2,6 +2,7 @@
 """
 LangChain tool wrappers for LLM-powered ReAct agent.
 Converts existing functions into tools the LLM can call.
+Includes validation to ensure required parameters are provided.
 """
 from langchain.tools import tool
 from typing import Optional
@@ -12,84 +13,98 @@ from src.rag.retriever import retrieve_policy as _retrieve_policy
 
 
 @tool
-def get_order_status(order_id: str) -> dict:
+def get_order_status(order_id: str = "") -> dict:
     """
     Get the current status of a customer order.
     
-    Use this tool when the customer asks about:
-    - Order tracking
-    - Where their order is
-    - Order status
-    - Delivery status
-    - "Where is my order"
+    IMPORTANT: This tool REQUIRES an order ID (4-5 digit number like "98762").
+    
+    DO NOT call this tool if:
+    - Customer hasn't mentioned an order ID yet
+    - You're not certain what the order ID is
+    - Order ID is empty or None
+    
+    Instead, respond directly: "I can help you track your order. Could you please provide your order ID? (Example: 98762)"
+    
+    Only use this tool when you have a valid order ID from the customer.
     
     Args:
-        order_id: The order ID (e.g., "98762", "54321"). REQUIRED - do not call without it.
+        order_id: The order ID (e.g., "98762", "54321"). MUST be a 4-5 digit number.
     
     Returns:
         Dictionary with order details including status, expected delivery, and reason for any delays.
     """
-    # Validate order_id is provided
-    if not order_id or order_id.strip() == "":
-        return {
-            "error": "Order ID is required",
-            "message": "Please ask the customer for their order ID before calling this tool."
-        }
+    # Strict validation - no tolerance for missing or invalid order IDs
+    if not order_id or len(order_id.strip()) < 4:
+        # Return a response that makes the LLM ask the user
+        raise ValueError(
+            "Order ID is required to check order status. Please ask the customer: "
+            "'I can help you track your order. Could you please provide your order ID? (Example: 98762)'"
+        )
     
     return _get_order_status(order_id)
 
 
 @tool
-def get_refund_status(order_id: str) -> dict:
+def get_refund_status(order_id: str = "") -> dict:
     """
     Check the refund status for an order.
     
-    Use this tool when the customer asks about:
-    - Refund status
-    - "Has my refund been processed"
-    - "When will I get my refund"
-    - Refund timeline
+    IMPORTANT: This tool REQUIRES an order ID (4-5 digit number like "98762").
+    
+    DO NOT call this tool if:
+    - Customer hasn't mentioned an order ID yet
+    - You're not certain what the order ID is
+    - Order ID is empty or None
+    
+    Instead, respond directly: "I can help you check your refund status. Could you please provide your order ID?"
+    
+    Only use this tool when you have a valid order ID from the customer.
     
     Args:
-        order_id: The order ID for which to check refund status. REQUIRED - do not call without it.
+        order_id: The order ID for which to check refund status. MUST be a 4-5 digit number.
     
     Returns:
         Dictionary with refund status, amount, and processed date if applicable.
     """
-    # Validate order_id is provided
-    if not order_id or order_id.strip() == "":
-        return {
-            "error": "Order ID is required",
-            "message": "Please ask the customer for their order ID before calling this tool."
-        }
+    # Strict validation
+    if not order_id or len(order_id.strip()) < 4:
+        raise ValueError(
+            "Order ID is required to check refund status. Please ask the customer: "
+            "'I can help you check your refund status. Could you please provide your order ID?'"
+        )
     
     return _get_refund_status(order_id)
 
 
 @tool
-def check_product_availability(product_id: str) -> dict:
+def check_product_availability(product_id: str = "") -> dict:
     """
     Check if a product is in stock and available for purchase.
     
-    Use this tool when the customer asks about:
-    - Product availability
-    - "Is this product in stock"
-    - Stock levels
-    - Product inventory
-    - "Can I buy product X"
+    IMPORTANT: This tool REQUIRES a product ID (e.g., "P123", "P456").
+    
+    DO NOT call this tool if:
+    - Customer hasn't mentioned a product ID yet
+    - You're not certain what the product ID is
+    - Product ID is empty or None
+    
+    Instead, respond directly: "I can help you check product availability. Could you please provide the product ID? (Example: P123)"
+    
+    Only use this tool when you have a valid product ID from the customer.
     
     Args:
-        product_id: The product ID (e.g., "P123", "PROD456"). REQUIRED - do not call without it.
+        product_id: The product ID (e.g., "P123", "PROD456"). MUST be provided.
     
     Returns:
         Dictionary with availability status, quantity, and restock date if out of stock.
     """
-    # Validate product_id is provided
-    if not product_id or product_id.strip() == "":
-        return {
-            "error": "Product ID is required",
-            "message": "Please ask the customer for the product ID before calling this tool."
-        }
+    # Strict validation
+    if not product_id or len(product_id.strip()) < 2:
+        raise ValueError(
+            "Product ID is required to check availability. Please ask the customer: "
+            "'I can help you check product availability. Could you please provide the product ID? (Example: P123)'"
+        )
     
     return _get_inventory(product_id)
 
