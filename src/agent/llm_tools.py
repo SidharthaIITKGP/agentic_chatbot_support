@@ -24,11 +24,18 @@ def get_order_status(order_id: str) -> dict:
     - "Where is my order"
     
     Args:
-        order_id: The order ID (e.g., "98762", "54321")
+        order_id: The order ID (e.g., "98762", "54321"). REQUIRED - do not call without it.
     
     Returns:
         Dictionary with order details including status, expected delivery, and reason for any delays.
     """
+    # Validate order_id is provided
+    if not order_id or order_id.strip() == "":
+        return {
+            "error": "Order ID is required",
+            "message": "Please ask the customer for their order ID before calling this tool."
+        }
+    
     return _get_order_status(order_id)
 
 
@@ -44,11 +51,18 @@ def get_refund_status(order_id: str) -> dict:
     - Refund timeline
     
     Args:
-        order_id: The order ID for which to check refund status
+        order_id: The order ID for which to check refund status. REQUIRED - do not call without it.
     
     Returns:
         Dictionary with refund status, amount, and processed date if applicable.
     """
+    # Validate order_id is provided
+    if not order_id or order_id.strip() == "":
+        return {
+            "error": "Order ID is required",
+            "message": "Please ask the customer for their order ID before calling this tool."
+        }
+    
     return _get_refund_status(order_id)
 
 
@@ -65,11 +79,18 @@ def check_product_availability(product_id: str) -> dict:
     - "Can I buy product X"
     
     Args:
-        product_id: The product ID (e.g., "P123", "PROD456")
+        product_id: The product ID (e.g., "P123", "PROD456"). REQUIRED - do not call without it.
     
     Returns:
         Dictionary with availability status, quantity, and restock date if out of stock.
     """
+    # Validate product_id is provided
+    if not product_id or product_id.strip() == "":
+        return {
+            "error": "Product ID is required",
+            "message": "Please ask the customer for the product ID before calling this tool."
+        }
+    
     return _get_inventory(product_id)
 
 

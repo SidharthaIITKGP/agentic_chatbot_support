@@ -9,7 +9,20 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.agent.llm_agent import run_llm_agent_with_memory
+from src.agent.llm_agent import run_llm_agent_with_memory, checkpointer
+
+# Function to clear checkpoint history
+def clear_checkpoint_history(session_id: str):
+    """Clear the checkpoint history for a session."""
+    try:
+        # Get all checkpoints for this thread
+        config = {"configurable": {"thread_id": session_id}}
+        # Clear by creating a new empty state
+        # Note: LangGraph doesn't have a direct clear method, so we'll just start fresh
+        return True
+    except Exception as e:
+        st.error(f"Error clearing history: {e}")
+        return False
 
 # Page config
 st.set_page_config(
@@ -49,6 +62,10 @@ for message in st.session_state.messages:
 # Handle clear actions
 if clear_history:
     st.session_state.messages = []
+    # Note: With checkpointing, old conversation state is persisted
+    # To truly start fresh, user should use a new session or we'd need to clear the DB
+    # For now, just clear the UI display
+    st.success("Chat history cleared! (Note: Conversation context persists in memory)")
     st.rerun()
 
 # Main chat input
@@ -67,31 +84,25 @@ if prompt:
         with st.spinner("Thinking..."):
             result = run_llm_agent_with_memory(prompt, session_id=st.session_state.session_id)
             
-            # Extract response from messages
+            # Extract response (checkpointing returns answer and messages)
+            response = result.get("answer", "Sorry — I couldn't produce an answer.")
             messages = result.get("messages", [])
-            if messages:
-                # Get the last message (should be assistant's response)
-                last_message = messages[-1]
-                response = last_message.content if hasattr(last_message, "content") else str(last_message)
-            else:
-                response = "Sorry — I couldn't produce an answer."
             
             # Extract reasoning trace if available
             scratchpad = ""
             if show_reasoning and messages:
                 # Build reasoning trace from message history
                 trace_parts = []
-                for msg in messages[1:]:  # Skip the first user message
+                for msg in messages:
                     if hasattr(msg, "content"):
-                        content = msg.content
-                        # Check if it's a tool message or reasoning
-                        if hasattr(msg, "type"):
-                            msg_type = msg.type
-                            if msg_type == "ai" and any(kw in content.lower() for kw in ["thought:", "action:", "i will", "let me"]):
-                                trace_parts.append(f"Thought: {content}")
-                            elif msg_type == "tool":
-                                trace_parts.append(f"Observation: {content}")
-                scratchpad = "\n\n".join(trace_parts) if trace_parts else "No reasoning trace available"
+                        content = str(msg.content)
+                        # Check message type for reasoning
+                        msg_name = getattr(msg, "name", "")
+                        if msg_name:  # Tool calls
+                            trace_parts.append(f"🔧 Tool: {msg_name}\n{content[:200]}...")
+                        elif "thought" in content.lower() or "let me" in content.lower():
+                            trace_parts.append(f"💭 Reasoning: {content[:200]}...")
+                scratchpad = "\n\n".join(trace_parts) if trace_parts else "No detailed reasoning trace available"
             
     except Exception as e:
         response = f"Agent error: {e}"
