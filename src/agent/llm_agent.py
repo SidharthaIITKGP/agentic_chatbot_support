@@ -14,6 +14,7 @@ from typing import Literal
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END, MessagesState
 from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage
 from .llm_tools import ALL_TOOLS
@@ -85,7 +86,7 @@ def create_llm_agent():
     
     # Create ReAct agent with tools
     # LangGraph handles the ReAct loop automatically!
-    agent = create_react_agent(
+    agent = create_agent(
         model=llm_with_system,
         tools=ALL_TOOLS,
     )
