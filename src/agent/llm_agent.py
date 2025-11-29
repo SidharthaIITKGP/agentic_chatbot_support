@@ -16,11 +16,18 @@ from langgraph.graph import StateGraph, END, MessagesState
 from langgraph.prebuilt import create_react_agent
 from langchain.agents import create_agent
 from langchain_groq import ChatGroq
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langgraph.checkpoint.sqlite import SqliteSaver
 from .llm_tools import ALL_TOOLS
 
 # Load environment variables
 load_dotenv()
+
+# Initialize checkpointer for persistent memory
+# Create the database connection
+import sqlite3
+_conn = sqlite3.connect("src/logs/agent_memory.db", check_same_thread=False)
+checkpointer = SqliteSaver(_conn)
 
 # Initialize Groq LLM
 def get_llm():
@@ -71,24 +78,26 @@ Remember: You're representing the company, so be helpful and professional!
 # Create the ReAct agent
 def create_llm_agent():
     """
-    Create an LLM-powered ReAct agent using LangGraph.
+    Create an LLM-powered ReAct agent using LangGraph with checkpointing.
     
     This agent:
     - Uses LLM for reasoning (Thought)
     - Calls tools as needed (Action)
     - Observes tool results (Observation)
     - Decides when to finish (iterates until confident)
+    - Automatically saves conversation state via checkpointing
     """
     llm = get_llm()
     
     # Bind system message to LLM
     llm_with_system = llm.bind(system=SYSTEM_PROMPT)
     
-    # Create ReAct agent with tools
-    # LangGraph handles the ReAct loop automatically!
+    # Create ReAct agent with tools and checkpointing
+    # LangGraph handles the ReAct loop and state persistence automatically!
     agent = create_agent(
         model=llm_with_system,
         tools=ALL_TOOLS,
+        checkpointer=checkpointer,  # Enable automatic state persistence
     )
     
     return agent
@@ -112,9 +121,11 @@ def run_llm_agent(user_query: str, conversation_history: list = None) -> dict:
     messages.append({"role": "user", "content": user_query})
     
     # Run the agent (LangGraph handles the ReAct loop)
-    result = llm_agent.invoke({
-        "messages": messages
-    })
+    # Use a temporary thread_id for stateless queries
+    result = llm_agent.invoke(
+        {"messages": messages},
+        config={"configurable": {"thread_id": "temp"}}
+    )
     
     return result
 
@@ -143,35 +154,20 @@ def run_llm_agent_simple(user_query: str) -> str:
 
 def run_llm_agent_with_memory(user_query: str, session_id: str = "default") -> dict:
     """
-    Run agent with persistent conversation memory.
+    Run agent with persistent conversation memory using LangGraph checkpointing.
     
     Args:
         user_query: The user's question
-        session_id: Session identifier for memory persistence
+        session_id: Session identifier for memory persistence (thread_id)
     
     Returns:
         Dictionary with 'answer' (string) and 'messages' (list)
     """
-    from .memory import load_memory, save_memory
-    
-    # Load conversation history
-    mem = load_memory(session_id)
-    history_raw = mem.get("messages", []) or []
-    
-    # Convert to LangChain message format
-    messages = []
-    for entry in history_raw[-10:]:  # Last 10 messages for context
-        if isinstance(entry, dict):
-            if "user" in entry:
-                messages.append({"role": "user", "content": entry["user"]})
-            if "assistant" in entry:
-                messages.append({"role": "assistant", "content": entry["assistant"]})
-    
-    # Add current query
-    messages.append({"role": "user", "content": user_query})
-    
-    # Run agent
-    result = llm_agent.invoke({"messages": messages})
+    # Run agent with thread_id for automatic state persistence
+    result = llm_agent.invoke(
+        {"messages": [{"role": "user", "content": user_query}]},
+        config={"configurable": {"thread_id": session_id}}
+    )
     
     # Extract answer
     result_messages = result.get("messages", [])
@@ -182,12 +178,6 @@ def run_llm_agent_with_memory(user_query: str, session_id: str = "default") -> d
             answer = last_message.content
         elif isinstance(last_message, dict):
             answer = last_message.get("content", "No response")
-    
-    # Update memory
-    mem_messages = mem.get("messages", []) or []
-    mem_messages.append({"user": user_query, "assistant": answer})
-    mem["messages"] = mem_messages[-20:]  # Keep last 20
-    save_memory(session_id, mem)
     
     return {
         "answer": answer,
