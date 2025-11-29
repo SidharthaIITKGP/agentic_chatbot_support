@@ -9,43 +9,25 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.agent.agent_graph import run_agent_with_memory
-from src.agent.memory import load_memory, save_memory, memory_path
+from src.agent.llm_agent import run_llm_agent_with_memory
 
 # Page config
 st.set_page_config(
-    page_title="Customer Support Chatbot",
+    page_title="Customer Support Chatbot - LLM Powered",
     page_icon="💬",
     layout="centered",
 )
 
 st.title("💬 Customer Support Chatbot")
-st.markdown("Ask me about orders, refunds, returns, policies, or product availability!")
-
-# Show info banner about clearing memory if needed
-if "error_shown" not in st.session_state:
-    st.session_state.error_shown = False
+st.markdown("**LLM-Powered ReAct Agent** - Ask me about orders, refunds, returns, policies, or product availability!")
 
 # Initialize session ID for memory
 if "session_id" not in st.session_state:
     st.session_state.session_id = "streamlit_user"
 
-# If messages haven't been initialized, try to load from persistent memory
+# Initialize messages
 if "messages" not in st.session_state:
-    # load persistent memory and convert to UI-friendly chat format
-    try:
-        mem = load_memory(st.session_state.session_id)
-        ui_messages = []
-        for entry in mem.get("messages", []):
-            # memory entries were stored as {"user": "...", "assistant": "..."}
-            if isinstance(entry, dict) and "user" in entry and "assistant" in entry:
-                ui_messages.append({"role": "user", "content": entry["user"]})
-                ui_messages.append({"role": "assistant", "content": entry["assistant"]})
-            # Skip any malformed entries
-        st.session_state.messages = ui_messages
-    except Exception:
-        # If memory loading fails, start fresh
-        st.session_state.messages = []
+    st.session_state.messages = []
 
 # Sidebar controls
 with st.sidebar:
@@ -55,109 +37,74 @@ with st.sidebar:
     show_reasoning = st.checkbox("Show ReAct Reasoning", value=False, help="Display the agent's thought process")
     
     st.divider()
-    clear_history = st.button("Clear Chat History (session only)")
-    clear_all = st.button("Clear Chat + Memory (persistent)")
+    clear_history = st.button("Clear Chat History")
 
-# Display chat messages (use st.chat_message if available; fallback to markdown)
+# Display chat messages
 for message in st.session_state.messages:
     role = message.get("role", "user")
     content = message.get("content", "")
-    # prefer st.chat_message when available
-    try:
-        with st.chat_message(role):
-            st.markdown(content)
-    except Exception:
-        # fallback rendering
-        if role == "user":
-            st.markdown(f"**You:** {content}")
-        else:
-            st.markdown(f"**Bot:** {content}")
+    with st.chat_message(role):
+        st.markdown(content)
 
 # Handle clear actions
 if clear_history:
     st.session_state.messages = []
-    # attempt to rerun to reflect immediately
-    try:
-        st.experimental_rerun()
-    except Exception:
-        try:
-            st.rerun()
-        except Exception:
-            pass
-
-if clear_all:
-    # clear in-memory UI state
-    st.session_state.messages = []
-    # clear persistent memory file
-    mp = memory_path(st.session_state.session_id)
-    try:
-        if os.path.exists(mp):
-            os.remove(mp)
-    except Exception as e:
-        st.warning(f"Failed to remove memory file: {e}")
-    # attempt to rerun
-    try:
-        st.experimental_rerun()
-    except Exception:
-        try:
-            st.rerun()
-        except Exception:
-            pass
+    st.rerun()
 
 # Main chat input
-prompt = ""
-try:
-    prompt = st.chat_input("How can I help you today?")
-except Exception:
-    # fallback if st.chat_input isn't available
-    prompt = st.text_input("How can I help you today?", key="fallback_input")
+prompt = st.chat_input("How can I help you today?")
 
 if prompt:
-    # normalize and append user message
+    # Append user message
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    # show the user message immediately using chat_message if available
-    try:
-        with st.chat_message("user"):
-            st.markdown(prompt)
-    except Exception:
-        st.markdown(f"**You:** {prompt}")
+    # Show the user message immediately
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-    # Call agent (wrapped in try/except)
+    # Call LLM agent
     try:
         with st.spinner("Thinking..."):
-            state = run_agent_with_memory(prompt, session_id=st.session_state.session_id)
-            response = state.final_answer or "Sorry — I couldn't produce an answer."
-            # For now, scratchpad not available from run_agent_with_memory
-            # Would need to return full result dict to show reasoning
-            scratchpad = ""
+            result = run_llm_agent_with_memory(prompt, session_id=st.session_state.session_id)
             
-    except AttributeError as e:
-        # Specific handling for State object issues - likely stale memory
-        if "'State' object has no attribute 'get'" in str(e):
-            response = "⚠️ **Memory format error detected.** This usually happens after a code update. Please click '**Clear Chat + Memory (persistent)**' in the sidebar to reset and try again."
-            st.session_state.error_shown = True
+            # Extract response from messages
+            messages = result.get("messages", [])
+            if messages:
+                # Get the last message (should be assistant's response)
+                last_message = messages[-1]
+                response = last_message.content if hasattr(last_message, "content") else str(last_message)
+            else:
+                response = "Sorry — I couldn't produce an answer."
+            
+            # Extract reasoning trace if available
             scratchpad = ""
-        else:
-            response = f"Agent error: {e}"
-            scratchpad = ""
+            if show_reasoning and messages:
+                # Build reasoning trace from message history
+                trace_parts = []
+                for msg in messages[1:]:  # Skip the first user message
+                    if hasattr(msg, "content"):
+                        content = msg.content
+                        # Check if it's a tool message or reasoning
+                        if hasattr(msg, "type"):
+                            msg_type = msg.type
+                            if msg_type == "ai" and any(kw in content.lower() for kw in ["thought:", "action:", "i will", "let me"]):
+                                trace_parts.append(f"Thought: {content}")
+                            elif msg_type == "tool":
+                                trace_parts.append(f"Observation: {content}")
+                scratchpad = "\n\n".join(trace_parts) if trace_parts else "No reasoning trace available"
+            
     except Exception as e:
         response = f"Agent error: {e}"
         scratchpad = ""
 
     # Display assistant response
-    try:
-        with st.chat_message("assistant"):
-            st.markdown(response)
-            
-            # Show reasoning trace if enabled
-            if show_reasoning and scratchpad:
-                with st.expander("🧠 ReAct Reasoning Trace"):
-                    st.text(scratchpad)
-    except Exception:
-        st.markdown(f"**Bot:** {response}")
+    with st.chat_message("assistant"):
+        st.markdown(response)
+        
+        # Show reasoning trace if enabled
         if show_reasoning and scratchpad:
-            st.text_area("Reasoning:", scratchpad, height=200)
+            with st.expander("🧠 ReAct Reasoning Trace"):
+                st.text(scratchpad)
 
     # Append assistant message to chat history
     st.session_state.messages.append({"role": "assistant", "content": response})
