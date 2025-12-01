@@ -15,7 +15,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any
-
+from langchain_core.embeddings import Embeddings
 import numpy as np
 from numpy.linalg import norm
 
@@ -33,7 +33,7 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 # Embedding model same as ingestion
 EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-class MiniLMEmbeddings:
+class MiniLMEmbeddings(Embeddings):
     def __init__(self, model_name: str = EMBED_MODEL_NAME):
         self.model = SentenceTransformer(model_name)
 
@@ -52,13 +52,13 @@ class MiniLMEmbeddings:
 
 # helpers
 def _cosine_sim(a: List[float], b: List[float]) -> float:
-    a = np.array(a, dtype=float)
-    b = np.array(b, dtype=float)
-    da = norm(a)
-    db = norm(b)
-    if da == 0 or db == 0:
+    arr_a = np.array(a, dtype=float)
+    arr_b = np.array(b, dtype=float)
+    norm_a = norm(arr_a)
+    norm_b = norm(arr_b)
+    if norm_a == 0 or norm_b == 0:
         return 0.0
-    return float(np.dot(a, b) / (da * db))
+    return float(np.dot(arr_a, arr_b) / (norm_a * norm_b))
 
 def _lexical_score(query: str, doc_text: str) -> float:
     q_tokens = {t.lower().strip(".,;:!?\"'()[]") for t in query.split() if t.strip()}
@@ -94,10 +94,8 @@ def retrieve_policy(
 
     # 1) Use FAISS to get candidate documents (no reliance on its numeric score)
     try:
-        # prefer similarity_search (some versions provide score; we ignore it)
         docs = store.similarity_search(query, k=fetch_k)
     except Exception:
-        # fallback: try similarity_search_with_score and extract docs
         try:
             cand_with_scores = store.similarity_search_with_score(query, k=fetch_k)
             docs = [d for d, _ in cand_with_scores]

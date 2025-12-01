@@ -11,12 +11,12 @@ LLM-Powered ReAct Agent using LangGraph and Groq.
 import os
 import re
 from typing import Literal, Annotated, TypedDict
-from operator import add
+from langgraph.graph.message import add_messages
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END, START
 from langgraph.prebuilt import create_react_agent, ToolNode
 from langchain.agents import create_agent
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.prebuilt import tools_condition
@@ -34,20 +34,17 @@ checkpointer = SqliteSaver(_conn)
 # Define state for our agent with interrupts
 class AgentState(TypedDict):
     """State that tracks conversation messages."""
-    messages: Annotated[list[BaseMessage], add]
+    messages: Annotated[list[BaseMessage], add_messages]
 
-# Initialize Groq LLM
+# Initialize Gemini LLM
 def get_llm():
-    """Get the Groq LLM instance."""
-    api_key = os.getenv("GROQ_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError("GROQ_API_KEY not found in environment variables")
+        raise ValueError("GEMINI_API_KEY not found in environment variables")
     
-    return ChatGroq(
-        api_key=api_key,
-        model="llama-3.1-8b-instant",  # Fast and efficient model
-        temperature=0.1,  # Low temperature for consistent behavior
-        max_tokens=8000,
+    return ChatGoogleGenerativeAI(
+        api_key=api_key, #type: ignore
+        model="gemini-2.5-flash",  # Fast and efficient model
     )
 
 # System prompt that guides the LLM's behavior
@@ -55,21 +52,26 @@ SYSTEM_PROMPT = """You are a helpful customer support agent for an e-commerce co
 
 Your role is to assist customers with orders, refunds, returns, and policy questions.
 
-IMPORTANT RULES:
-1. Extract IDs from customer queries:
-   - Order ID: 4-5 digit numbers (e.g., 98762)
-   - Product ID: codes like PROD123, P456
-   
-2. When customer provides ID in their message, use the appropriate tool immediately
+CRITICAL RULES - MUST FOLLOW:
+1. NEVER call a tool without the required parameters from the customer's actual message
+2. NEVER use example numbers or make up IDs - only use what the customer provides
+3. Order IDs are 4-5 digit numbers (like 12345, 98765, etc.)
+4. Product IDs start with P or PROD (like P123, PROD456)
 
-3. If customer doesn't provide required ID, politely ask:
-   "I can help you with that. Could you please provide your order ID? (Example: 98762)"
+WORKFLOW:
+Step 1: Check if the customer provided the required ID in their message
+Step 2: If ID is present → call the appropriate tool with that ID
+Step 3: If ID is NOT present → politely ask for it, DO NOT call any tool
 
-4. Use tools to get accurate, real-time information - never make up data
+EXAMPLES OF CORRECT BEHAVIOR:
+- Customer: "where is my order 98762?" → Call get_order_status("98762")
+- Customer: "where is my order" → Ask "I can help you track your order. Could you please provide your order ID?"
+- Customer: "check stock for P123" → Call check_product_availability("P123")
+- Customer: "is the product available" → Ask "I can help check availability. Could you provide the product ID?"
 
 AVAILABLE TOOLS:
 - get_order_status(order_id) - for order tracking
-- get_refund_status(order_id) - for refund inquiries
+- get_refund_status(order_id) - for refund inquiries  
 - check_product_availability(product_id) - for stock checks
 - search_policy_documents(query) - for policy questions
 
@@ -92,75 +94,17 @@ def create_llm_agent():
     
     # Bind system message to LLM
     llm_with_system = llm.bind(system=SYSTEM_PROMPT)
-    
-    # Create ReAct agent with tools, checkpointing, and interrupts
-    # interrupt_before=["tools"] means agent will pause before calling tools
-    # This allows us to validate inputs and ask for missing information
+
     agent = create_react_agent(
         model=llm_with_system,
         tools=ALL_TOOLS,
         checkpointer=checkpointer,
-        # Note: interrupt_before would require manual handling
-        # For now, we rely on LLM + tool validation
     )
     
     return agent
 
 # Singleton instance
 llm_agent = create_llm_agent()
-
-def run_llm_agent(user_query: str, conversation_history: list = None) -> dict:
-    """
-    Run the LLM-powered ReAct agent.
-    
-    Args:
-        user_query: The user's question
-        conversation_history: Previous messages (optional)
-    
-    Returns:
-        Dictionary with 'messages' list containing the conversation
-    """
-    # Prepare messages
-    messages = conversation_history or []
-    messages.append({"role": "user", "content": user_query})
-    
-    # Run the agent (LangGraph handles the ReAct loop)
-    # Use a temporary thread_id for stateless queries
-    result = llm_agent.invoke(
-        {"messages": messages},
-        config={"configurable": {"thread_id": "temp"}}
-    )
-    
-    return result
-
-def run_llm_agent_simple(user_query: str) -> str:
-    """
-    Simple interface: query in, answer out.
-    Each call is isolated (no conversation history).
-    
-    Args:
-        user_query: The user's question
-    
-    Returns:
-        The agent's response as a string
-    """
-    import uuid
-    # Use unique thread_id for each query to avoid history accumulation
-    result = llm_agent.invoke(
-        {"messages": [{"role": "user", "content": user_query}]},
-        config={"configurable": {"thread_id": f"simple_{uuid.uuid4()}"}}
-    )
-    
-    # Extract final message
-    messages = result.get("messages", [])
-    if messages:
-        last_message = messages[-1]
-        if hasattr(last_message, 'content'):
-            return last_message.content
-        elif isinstance(last_message, dict):
-            return last_message.get("content", "No response generated")
-    
-    return "No response generated"
 
 def run_llm_agent_with_memory(user_query: str, session_id: str = "default") -> dict:
     """
@@ -194,21 +138,4 @@ def run_llm_agent_with_memory(user_query: str, session_id: str = "default") -> d
         "messages": result_messages
     }
 
-# CLI interface
-if __name__ == "__main__":
-    import sys
-    
-    query = " ".join(sys.argv[1:]) or input("User query: ")
-    
-    print("\n" + "="*70)
-    print("LLM-POWERED REACT AGENT")
-    print("="*70)
-    print(f"\nQuery: {query}\n")
-    
-    answer = run_llm_agent_simple(query)
-    
-    print("="*70)
-    print("RESPONSE:")
-    print("="*70)
-    print(answer)
-    print()
+

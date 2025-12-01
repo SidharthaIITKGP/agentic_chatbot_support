@@ -86,6 +86,11 @@ if prompt:
             
             # Extract response (checkpointing returns answer and messages)
             response = result.get("answer", "Sorry — I couldn't produce an answer.")
+            
+            # Ensure response is a string, not a message object
+            if not isinstance(response, str):
+                response = str(response)
+            
             messages = result.get("messages", [])
             
             # Extract reasoning trace if available

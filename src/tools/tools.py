@@ -1,6 +1,6 @@
 # src/tools/tools.py
 """
-Mock API tools for Agentic AI assignment.
+Mock API tools.
 
 Functions:
 - get_order_status(order_id: str) -> dict
@@ -9,7 +9,7 @@ Functions:
 
 Also:
 - load_all_mock_data(): loads JSON files from the local folder (orders.json, refunds.json, inventory.json)
-- get_langchain_tools(): returns a list of LangChain Tool wrappers (if langchain installed)
+- get_langchain_tools(): returns a list of LangChain Tool wrappers
 """
 
 import json
@@ -22,7 +22,7 @@ REFUNDS_PATH = PACKAGE_DIR / "refunds.json"
 INVENTORY_PATH = PACKAGE_DIR / "inventory.json"
 
 # load on first use (lazy)
-_DATA_CACHE = {
+_DATA_CACHE: Dict[str, Optional[Dict[str, Any]]] = {
     "orders": None,
     "refunds": None,
     "inventory": None,
@@ -94,22 +94,13 @@ def get_inventory(product_id: str) -> Dict[str, Any]:
 def get_langchain_tools() -> List[Any]:
     """
     Return a list of LangChain Tool objects wrapping the above functions.
-    If langchain is not installed or incompatible, returns an empty list.
 
     Tools:
     - get_order_status (name: "get_order_status")
     - get_refund_status (name: "get_refund_status")
     - get_inventory (name: "get_inventory")
     """
-    try:
-        # new LangChain tool api
-        from langchain.tools import Tool
-    except Exception:
-        # Try older location or return empty
-        try:
-            from langchain.agents import Tool  # fallback, unlikely
-        except Exception:
-            return []
+    from langchain_core.tools import Tool
 
     tools = [
         Tool.from_function(get_order_status, name="get_order_status", description="Get order status by order ID"),
@@ -119,26 +110,3 @@ def get_langchain_tools() -> List[Any]:
     return tools
 
 
-# If run directly, simple CLI demo
-if __name__ == "__main__":
-    import sys
-    args = sys.argv[1:]
-    if not args:
-        print("Usage examples:")
-        print("  python -m src.tools.tools order 98762")
-        print("  python -m src.tools.tools refund 54321")
-        print("  python -m src.tools.tools inventory P123")
-        sys.exit(0)
-
-    cmd = args[0]
-    if cmd in ("order", "get_order"):
-        oid = args[1] if len(args) > 1 else input("Order ID: ")
-        print(get_order_status(oid))
-    elif cmd in ("refund", "get_refund"):
-        oid = args[1] if len(args) > 1 else input("Order ID: ")
-        print(get_refund_status(oid))
-    elif cmd in ("inv", "inventory", "get_inventory"):
-        pid = args[1] if len(args) > 1 else input("Product ID: ")
-        print(get_inventory(pid))
-    else:
-        print("Unknown command.")

@@ -1,27 +1,24 @@
 # --- Core LLM & Agent Frameworks ---
-langchain
-langgraph
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-community>=0.0.20
+langgraph>=0.2.0
+langgraph-checkpoint-sqlite>=3.0.0
+langchain-google-genai>=1.0.0
 
-# --- Embeddings (Free + OpenAI optional) ---
-sentence-transformers
-tiktoken
-openai                     # optional, for OpenAI embeddings/LLMs
+# --- Embeddings & Vector Processing ---
+sentence-transformers>=2.2.0
+numpy>=1.24.0
+faiss-cpu>=1.7.4
 
-# --- Vector Stores ---
-chromadb
-faiss-cpu                  # optional, for FAISS retriever if needed
+# --- Document Processing ---
+langchain-text-splitters>=0.0.1
 
-# --- Document Loading & Processing ---
-langchain-community
-unstructured               # optional, helps with any future doc parsing
+# --- Web UI ---
+streamlit>=1.28.0
 
-# --- Web UI (Streamlit) ---
-streamlit
+# --- Environment & Config ---
+python-dotenv>=1.0.0
 
-# --- Model Serving & API Utilities ---
-requests
-pydantic
-
-# --- Testing & Dev Tools ---
-pytest
-python-dotenv
+# --- Testing (optional) ---
+pytest>=7.4.0

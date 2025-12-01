@@ -1,14 +1,4 @@
 # src/rag/ingest_policies.py
-"""
-Robust incremental ingestion using MiniLM (sentence-transformers) + LangChain FAISS.
-
-This version avoids langchain version-specific embedding wrappers by providing
-a tiny local adapter class MiniLMEmbeddings with the methods FAISS expects.
-
-Run from project root:
-    python -u src/rag/ingest_policies.py
-"""
-
 import os
 import json
 from pathlib import Path
@@ -16,6 +6,7 @@ from uuid import uuid4
 from time import time
 
 # LangChain imports (canonical)
+from langchain_core.embeddings import Embeddings
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
@@ -46,10 +37,9 @@ splitter = RecursiveCharacterTextSplitter(
     separators=["\n\n", "\n", " ", ""],
 )
 
-# ---------------- embeddings adapter ----------------
 EMBED_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-class MiniLMEmbeddings:
+class MiniLMEmbeddings(Embeddings):
     """
     Minimal embeddings adapter for LangChain/FAISS:
     - embed_documents(list[str]) -> List[List[float]]
@@ -162,7 +152,7 @@ def ingest_all_policies():
 
         # Save index after processing this file
         try:
-            faiss_store.save_local(str(FAISS_DIR))
+            faiss_store.save_local(str(FAISS_DIR)) #type: ignore
             print(f"  Saved FAISS index to {FAISS_DIR}")
         except Exception as e:
             print(f"  ❗ Error saving FAISS index: {e}")
